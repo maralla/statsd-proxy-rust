@@ -1,16 +1,16 @@
 bind: 8125
-threads: 4
-check_interval: 1000
+threads: 1
+check_interval: 3000
 nodes:
   node1:
     host: 127.0.0.1
     port: 8127
     adminport: 8128
-  node2:
-    host: 127.0.0.1
-    port: 8129
-    adminport: 8130
-  node3:
-    host: 127.0.0.1
-    port: 8131
-    adminport: 8132
+#  node2:
+#    host: 127.0.0.1
+#    port: 8129
+#    adminport: 8130
+#  node3:
+#    host: 127.0.0.1
+#    port: 8131
+#    adminport: 8132

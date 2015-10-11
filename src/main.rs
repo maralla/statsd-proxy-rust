@@ -2,6 +2,7 @@ extern crate nix;
 extern crate mio;
 extern crate yaml_rust;
 extern crate conhash;
+extern crate time;
 
 mod socket;
 mod event_loop;
@@ -14,8 +15,9 @@ use std::io::Read;
 use yaml_rust::yaml;
 
 use hash::ServerNode;
-use socket::UdpListener;
-use event_loop::{Proxy, SERVER};
+use socket::{UdpListener, TcpStream};
+use event_loop::{Proxy, SERVER, TIMEOUT, Connection};
+use mio::util::Slab;
 
 struct Manager {
     host: &'static str,
@@ -46,10 +48,7 @@ impl Manager {
         let t = thread::spawn(move || {
             let server = UdpListener::bind((host, port)).unwrap();
 
-            let mut config = mio::EventLoopConfig::default();
-            config.timer_tick_ms = ci;
-            let mut event_loop = mio::EventLoop::configured(config).unwrap();
-
+            let mut event_loop = mio::EventLoop::new().unwrap();
             event_loop.register_opt(
                 &server, SERVER,
                 mio::EventSet::readable() |
@@ -57,9 +56,18 @@ impl Manager {
                     mio::EventSet::error(),
                 mio::PollOpt::edge()).unwrap();
 
-            let mut proxy = Proxy::new(server, nodes);
+            let mut health_conns = Slab::new_starting_at(mio::Token(1), 1024);
+            for node in nodes.iter() {
+                let token = health_conns
+                    .insert_with(|t| Connection::new(node.clone(), t))
+                    .unwrap();
+                health_conns[token].register(&mut event_loop);
+            }
+
+            let mut proxy = Proxy::new(server, ci, health_conns);
 
             println!("running proxy at {}:{}", host, port);
+            let _ = event_loop.timeout_ms(TIMEOUT, ci).unwrap();
             event_loop.run(&mut proxy).unwrap();
         });
         self.threads.push(t);

@@ -81,9 +81,11 @@ impl Socket {
     }
 
     pub fn connect(&self, addr: &SockAddr) -> io::Result<bool> {
+        println!("hello {}, {}", addr.to_str(), self.fd);
         match sock::connect(self.fd, addr) {
             Ok(_) => Ok(true),
             Err(e) => {
+                println!("error");
                 match e {
                     nix::Error::Sys(nix::errno::EINPROGRESS) => Ok(false),
                     _ => Err(from_nix_error(e))
@@ -183,20 +185,27 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    pub fn connect<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
+    pub fn new() -> io::Result<TcpStream> {
         let sock = try!(Socket::new(AddressFamily::Inet, SockType::Stream, true));
-
-        try!(each_addr(addr, |a| sock.connect(a)));
-
         Ok(TcpStream {sock: sock})
+    }
+
+    pub fn connect<A: ToSocketAddrs>(&self, addr: A) -> io::Result<bool> {
+        try!(each_addr(addr, |a| self.sock.connect(a)));
+
+        Ok(true)
     }
 
     pub fn read(&self, buf: &mut [u8]) -> io::Result<Option<usize>> {
         self.sock.recv(buf)
     }
 
-    pub fn send(&self, buf: &[u8]) -> io::Result<Option<usize>> {
+    pub fn write(&self, buf: &[u8]) -> io::Result<Option<usize>> {
         self.sock.send(buf)
+    }
+
+    pub fn shutdown(&self) -> io::Result<()> {
+        self.sock.shutdown(sock::Shutdown::Both)
     }
 }
 
